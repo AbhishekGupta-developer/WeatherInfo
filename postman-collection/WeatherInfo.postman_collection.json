@@ -1,0 +1,38 @@
+{
+	"info": {
+		"_postman_id": "f9356799-2d7e-4e75-a551-b8bd9e0da049",
+		"name": "WeatherInfo",
+		"schema": "https://schema.getpostman.com/json/collection/v2.0.0/collection.json",
+		"_exporter_id": "19919775"
+	},
+	"item": [
+		{
+			"name": "api/weather",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "localhost/api/weather?pincode=411014&for_date=2024-10-24",
+					"host": [
+						"localhost"
+					],
+					"path": [
+						"api",
+						"weather"
+					],
+					"query": [
+						{
+							"key": "pincode",
+							"value": "411014"
+						},
+						{
+							"key": "for_date",
+							"value": "2024-10-24"
+						}
+					]
+				}
+			},
+			"response": []
+		}
+	]
+}

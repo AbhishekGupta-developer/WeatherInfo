@@ -1,18 +1,19 @@
-package com.myorganisation.weatherinfo.model;
+package com.myorganisation.weatherinfo.dto;
 
-import jakarta.persistence.*;
 import lombok.Data;
+
 import java.time.LocalDate;
 
 @Data
-@Entity
-public class WeatherInfo {
-
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+public class WeatherResponse {
 
     private String pincode;
+
+    private String name;
+    private double lat;
+    private double lon;
+    private String country;
+
     private LocalDate date;
 
     private String weatherMain;
@@ -42,5 +43,4 @@ public class WeatherInfo {
     private long sunset;
 
     private int timezone;
-
 }

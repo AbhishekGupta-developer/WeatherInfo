@@ -5,7 +5,6 @@ import lombok.Data;
 @Data
 public class OpenWeatherMapWeatherApiResponse {
 
-    private Coord coord;
     private Weather[] weather;
     private String base;
     private Main main;
@@ -14,13 +13,6 @@ public class OpenWeatherMapWeatherApiResponse {
     private Clouds clouds;
     private Sys sys;
     private int timezone;
-    private String name;
-
-    @Data
-    public static class Coord {
-        private double lon;
-        private double lat;
-    }
 
     @Data
     public static class Weather {
@@ -55,7 +47,6 @@ public class OpenWeatherMapWeatherApiResponse {
 
     @Data
     public static class Sys {
-        private String country;
         private long sunrise;
         private long sunset;
     }

@@ -2,6 +2,7 @@ package com.myorganisation.weatherinfo.service;
 
 import com.myorganisation.weatherinfo.dto.OpenWeatherMapGeoApiResponse;
 import com.myorganisation.weatherinfo.dto.OpenWeatherMapWeatherApiResponse;
+import com.myorganisation.weatherinfo.dto.WeatherResponse;
 import com.myorganisation.weatherinfo.model.PincodeInfo;
 import com.myorganisation.weatherinfo.model.WeatherInfo;
 import com.myorganisation.weatherinfo.repository.PincodeInfoRepository;
@@ -40,13 +41,26 @@ public class WeatherServiceImpl implements WeatherService {
     Logger logger = LoggerFactory.getLogger(WeatherServiceImpl.class);
 
     @Override
-    public WeatherInfo getWeather(String pincode, LocalDate date) {
+    public WeatherResponse getWeather(String pincode, LocalDate date) {
+
+        PincodeInfo existingPincodeInfo;
+        WeatherInfo existingWeatherInfo;
 
         // Check if the weather data exists in the DB
         logger.info("Checking DB for existing weather data");
-        Optional<WeatherInfo> existingWeather = weatherInfoRepository.findByPincodeAndDate(pincode, date);
-        if(existingWeather.isPresent()) {
-            return existingWeather.get();
+        Optional<WeatherInfo> weatherInfoOpt = weatherInfoRepository.findByPincodeAndDate(pincode, date);
+        if(weatherInfoOpt.isPresent()) {
+            existingWeatherInfo = weatherInfoOpt.get();
+
+            // Fetching PincodeInfo from DB
+            logger.info("Checking DB for existing pincode data");
+            Optional<PincodeInfo> pincodeInfoOpt = pincodeInfoRepository.findById(pincode);
+            if(pincodeInfoOpt.isPresent()) {
+                existingPincodeInfo = pincodeInfoOpt.get();
+                return buildWeatherResponse(existingPincodeInfo, existingWeatherInfo);
+            } else {
+                throw new RuntimeException("Pincode information not found for: " + pincode);
+            }
         }
 
 //        // Check if the given date is the current date (because the OpenWeatherMap API returns the weather data for the current date)
@@ -59,33 +73,30 @@ public class WeatherServiceImpl implements WeatherService {
         // Try to fetch lat and lon from DB
         logger.info("Checking DB for existing pincode data");
         Optional<PincodeInfo> pincodeInfoOpt = pincodeInfoRepository.findById(pincode);
-        double lat, lon;
 
         if(pincodeInfoOpt.isPresent()) {
-            PincodeInfo pincodeInfo = pincodeInfoOpt.get();
-            lat = pincodeInfo.getLatitude();
-            lon = pincodeInfo.getLongitude();
+            existingPincodeInfo = pincodeInfoOpt.get();
         } else {
             // Call Geocoding API to get latitude and longitude
             logger.info("Calling Geo API");
             String formattedGeoUrl = geoEndpoint.replace("{pincode}", pincode)
                                                 .replace("{apikey}", apiKey);
             OpenWeatherMapGeoApiResponse openWeatherMapGeoApiResponse = restTemplate.getForObject(formattedGeoUrl, OpenWeatherMapGeoApiResponse.class);
-            lat = openWeatherMapGeoApiResponse.getLat();
-            lon = openWeatherMapGeoApiResponse.getLon();
 
             // Save the new pincode information in the DB
             PincodeInfo newPincodeInfo = new PincodeInfo();
             newPincodeInfo.setPincode(pincode);
-            newPincodeInfo.setLatitude(lat);
-            newPincodeInfo.setLongitude(lon);
-            pincodeInfoRepository.save(newPincodeInfo);
+            newPincodeInfo.setName(openWeatherMapGeoApiResponse.getName());
+            newPincodeInfo.setLat(openWeatherMapGeoApiResponse.getLat());
+            newPincodeInfo.setLon(openWeatherMapGeoApiResponse.getLon());
+            newPincodeInfo.setCountry(openWeatherMapGeoApiResponse.getCountry());
+            existingPincodeInfo = pincodeInfoRepository.save(newPincodeInfo);
         }
 
         // Fetch weather information from OpenWeatherMap API
         logger.info("Calling Weather API");
-        String formattedWeatherUrl = weatherEndpoint.replace("{lat}", String.valueOf(lat))
-                                                    .replace("{lon}", String.valueOf(lon))
+        String formattedWeatherUrl = weatherEndpoint.replace("{lat}", String.valueOf(existingPincodeInfo.getLat()))
+                                                    .replace("{lon}", String.valueOf(existingPincodeInfo.getLon()))
                                                     .replace("{apikey}", apiKey);
         OpenWeatherMapWeatherApiResponse openWeatherMapWeatherApiResponse = restTemplate.getForObject(formattedWeatherUrl, OpenWeatherMapWeatherApiResponse.class);
 
@@ -94,9 +105,6 @@ public class WeatherServiceImpl implements WeatherService {
 
         weatherInfo.setPincode(pincode);
         weatherInfo.setDate(date);
-
-        weatherInfo.setLon(openWeatherMapWeatherApiResponse.getCoord().getLon());
-        weatherInfo.setLat(openWeatherMapWeatherApiResponse.getCoord().getLat());
 
         weatherInfo.setWeatherMain(openWeatherMapWeatherApiResponse.getWeather()[0].getMain());
         weatherInfo.setWeatherDescription(openWeatherMapWeatherApiResponse.getWeather()[0].getDescription());
@@ -121,13 +129,47 @@ public class WeatherServiceImpl implements WeatherService {
 
         weatherInfo.setCloudiness(openWeatherMapWeatherApiResponse.getClouds().getAll());
 
-        weatherInfo.setCountry(openWeatherMapWeatherApiResponse.getSys().getCountry());
         weatherInfo.setSunrise(openWeatherMapWeatherApiResponse.getSys().getSunrise());
         weatherInfo.setSunset(openWeatherMapWeatherApiResponse.getSys().getSunset());
 
         weatherInfo.setTimezone(openWeatherMapWeatherApiResponse.getTimezone());
-        weatherInfo.setName(openWeatherMapWeatherApiResponse.getName());
 
-        return weatherInfoRepository.save(weatherInfo);
+        existingWeatherInfo = weatherInfoRepository.save(weatherInfo);
+
+        return buildWeatherResponse(existingPincodeInfo, existingWeatherInfo);
+    }
+
+    private WeatherResponse buildWeatherResponse(PincodeInfo existingPincodeInfo, WeatherInfo existingWeatherInfo) {
+        WeatherResponse weatherResponse = new WeatherResponse();
+
+        weatherResponse.setPincode(existingPincodeInfo.getPincode());
+        weatherResponse.setName(existingPincodeInfo.getName());
+        weatherResponse.setLat(existingPincodeInfo.getLat());
+        weatherResponse.setLon(existingPincodeInfo.getLon());
+        weatherResponse.setCountry(existingPincodeInfo.getCountry());
+
+        weatherResponse.setDate(existingWeatherInfo.getDate());
+        weatherResponse.setWeatherMain(existingWeatherInfo.getWeatherMain());
+        weatherResponse.setWeatherDescription(existingWeatherInfo.getWeatherDescription());
+        weatherResponse.setWeatherIcon(existingWeatherInfo.getWeatherIcon());
+        weatherResponse.setBase(existingWeatherInfo.getBase());
+        weatherResponse.setTemp(existingWeatherInfo.getTemp());
+        weatherResponse.setFeelsLike(existingWeatherInfo.getFeelsLike());
+        weatherResponse.setTempMin(existingWeatherInfo.getTempMin());
+        weatherResponse.setTempMax(existingWeatherInfo.getTempMax());
+        weatherResponse.setPressure(existingWeatherInfo.getPressure());
+        weatherResponse.setHumidity(existingWeatherInfo.getHumidity());
+        weatherResponse.setSeaLevel(existingWeatherInfo.getSeaLevel());
+        weatherResponse.setGrndLevel(existingWeatherInfo.getGrndLevel());
+        weatherResponse.setVisibility(existingWeatherInfo.getVisibility());
+        weatherResponse.setWindSpeed(existingWeatherInfo.getWindSpeed());
+        weatherResponse.setWindDeg(existingWeatherInfo.getWindDeg());
+        weatherResponse.setWindGust(existingWeatherInfo.getWindGust());
+        weatherResponse.setCloudiness(existingWeatherInfo.getCloudiness());
+        weatherResponse.setSunrise(existingWeatherInfo.getSunrise());
+        weatherResponse.setSunset(existingWeatherInfo.getSunset());
+        weatherResponse.setTimezone(existingWeatherInfo.getTimezone());
+
+        return weatherResponse;
     }
 }
